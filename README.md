@@ -19,7 +19,7 @@
 
     ```bash
     $ cd B4Lecture-2026
-    $ git remote add upstream https://github.com/TakedaLab/B4Lecture-2023.git
+    $ git remote add upstream https://github.com/STAL-Lab/B4Lecture-2026.git
     ```
 
 
@@ -28,12 +28,12 @@
 1. masterブランチに戻る
   ```bash
   $ cd B4Lecture-2026
-  $ git checkout master
+  $ git checkout main
   ```
 2. 本家リポジトリから更新されたソースをマージする
   ```bash
   $ git fetch upstream
-  $ git merge upstream/master
+  $ git merge upstream/main
   ```
 3. ブランチを作成する
   ```bash

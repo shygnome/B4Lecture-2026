@@ -20,11 +20,20 @@
 2. トラッキングデータを描画する
    - ピッチ上に選手とボールの位置を描画する
    - 軸や凡例などを必要に応じて付け，見やすい図にする
+
+   <video src="./tracking_1018887_first100_1.mp4" controls muted playsinline width="720"></video>
+
 3. 指定選手の速度・加速度を表示する
    - 1人の選手を指定し，位置の時間変化から速度と加速度を計算する
    - 時間に対する折れ線グラフとして表示する
+
+   <img src="./player_246_speed_acceleration_10_500.png" alt="player_246_speed_acceleration_10_500" width="700">
+
 4. 応用課題
    - ボールの現在位置だけでなく，過去5フレーム分の軌跡も描画する
+
+   <video src="./tracking_1018887_first100.mp4" controls muted playsinline width="720"></video>
+
 5. 発表に向けて整理する
    - 取り組んだ内容を周りに分かるように説明できるようにする
    - コードの説明はGitHubのページをそのまま使ってもよい
@@ -35,6 +44,7 @@
   - データ処理：`numpy`, `pandas`
   - 描画：`matplotlib`
   - アニメーション：`matplotlib.animation`
+  - サッカー描画のためのライブラリもある
 
 ## 注意
 

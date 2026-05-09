@@ -2,6 +2,8 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation # pltで描画した図をパラパラ漫画みたいに動かすやつ
 from mplsoccer import Pitch
+import pandas as pd
+import numpy as np
 
 
 # ==========================================
@@ -142,7 +144,7 @@ def create_tracking_animation(data, player_team_map, home_name, away_name, outpu
                 ax.scatter(obj['x'], obj['y'], c='black', edgecolors='white', label=away_name, zorder=10)
             elif team == 'ball':
                 ax.scatter(obj['x'], obj['y'], c='yellow', edgecolors='black', label='Ball', zorder=10)
-                
+
         # 凡例の描画（データがある場合のみ）
         handles, labels = ax.get_legend_handles_labels() # get_legend_handles_labels() は現在のグラフに描画されている要素から凡例のハンドルとラベルを取得する関数
         if handles:
@@ -157,6 +159,90 @@ def create_tracking_animation(data, player_team_map, home_name, away_name, outpu
     # mp4として保存
     ani.save(output_filename, writer='ffmpeg', fps=10)
 
+
+def calculate_and_plot_metrics(data, target_id, output_filename):
+    """
+    特定の選手の速度と加速度を計算し、時系列グラフとして保存する。
+    
+    Parameters:
+        data (list): トラッキングデータのリスト
+        target_id (int): 対象となる選手のID
+        output_filename (str): 保存するグラフのファイル名
+    """
+    
+    frames = [] # フレーム番号のリスト
+    x_coords = [] # x座標のリスト
+    y_coords = [] # y座標のリスト
+    
+    # 全フレームをループして、ターゲット選手の座標を抽出
+    for frame_info in data:
+        frame_idx = frame_info['frame']
+        found = False # ターゲット選手がこのフレームにいるかどうかを示すフラグ
+        for obj in frame_info['data']:
+            if obj['trackable_object'] == target_id:
+                frames.append(frame_idx)
+                x_coords.append(obj['x'])
+                y_coords.append(obj['y'])
+                found = True
+                break
+        
+        # 選手がカメラ外にいてデータがないフレームは欠損値(NaN)として扱う
+        if not found:
+            frames.append(frame_idx)
+            x_coords.append(np.nan)
+            y_coords.append(np.nan)
+            
+    # pandasのデータフレーム(表形式)に変換
+    df = pd.DataFrame({'frame': frames, 'x': x_coords, 'y': y_coords})
+    
+    # 速度と加速度の計算
+    # 1フレーム間の時間差 (dt) は 0.1秒
+    dt = 0.1
+    df['time'] = df['frame'] * dt
+    
+    # .diff() で１フレーム前との差分を計算して、dx と dy を求める
+    df['dx'] = df['x'].diff()
+    df['dy'] = df['y'].diff()
+    
+    # dist = √(dx^2 + dy^2)
+    df['dist'] = np.sqrt(df['dx']**2 + df['dy']**2)
+    
+    # 速度 (m/s) = 距離 / 0.1秒
+    df['speed'] = df['dist'] / dt
+    
+    # 加速度 (m/s^2) = 速度の変化量 / 0.1秒
+    df['acceleration'] = df['speed'].diff() / dt
+    
+    # グラフの描画
+    # 上下に2つのグラフを並べる (2行1列)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # グラフのタイトルと軸ラベルの設定
+    fig.suptitle(f"trackable_object: {target_id}", fontsize=14)
+    ax1.set_title("Frames 10-500", fontsize=12)
+    
+    # 上段: 速度グラフ
+    ax1.plot(df['time'], df['speed'], color='blue', label='Speed (m/s)')
+    ax1.set_ylabel('Speed [m/s]')
+    ax1.set_ylim(0, 5.2)
+    # ax1.legend()
+    ax1.grid(True)
+    
+    # 下段: 加速度グラフ
+    ax2.plot(df['time'], df['acceleration'], color='red', label='Acceleration (m/s^2)')
+    ax2.set_ylabel('Acceleration [m/s^2]')
+    ax2.set_ylim(-7.5, 6.0)
+    ax2.set_xlabel('Time [s]')
+    ax1.set_xlim(1, 50)
+    ax2.set_xlim(1, 50)
+
+    #ax2.legend()
+    ax2.grid(True)
+    
+    plt.tight_layout()
+    plt.savefig(output_filename)
+
+
 # ==========================================
 # メイン処理
 # ==========================================
@@ -168,7 +254,7 @@ def main():
     player_team_map, home_name, away_name = create_player_team_map(meta)
     
     # 3. アニメーションの作成
-    num_frames = min(200, len(data)) # 描画するフレーム数を200に制限（データが200フレーム未満の場合は全て描画）
+    num_frames = min(200, len(data)) # 描画するフレーム数を200に制限
     create_tracking_animation(
         data=data, 
         player_team_map=player_team_map, 
@@ -178,8 +264,13 @@ def main():
         num_frames=num_frames
     )
     
-    # --- 今後、課題2の処理（速度・加速度の計算とグラフ描画の関数）をここに追加していく ---
-
+    # 4. 速度・加速度の計算とグラフ化
+    trackable_object = 256 # player_id = 246 が trackable_object = 256 らしい
+    calculate_and_plot_metrics(
+        data=data, 
+        target_id=trackable_object, 
+        output_filename="player_246_metrics.png"
+    )
 
 if __name__ == "__main__":
     main()

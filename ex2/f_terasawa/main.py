@@ -1,21 +1,50 @@
-# main.py
-from src.data_processor import load_tracking_data
-
+from src.config import TRAJECTORY_PLOT_PATH, SPEED_PLOT_PATH
+from src.data_processor import load_tracking_data, calculate_centers, calculate_kinematics
+from src.visualizer import plot_trajectories, plot_speed_subplots
 
 def main():
-    print("--- ステップ1: データの読み込みテスト ---")
     try:
-        # データの読み込み
+        # 1. データのロードと前処理
+        print("INFO: Loading data...")
         df = load_tracking_data()
+        processed_df = calculate_centers(df)
+        
+        # 2. 速度・加速度の計算
+        print("INFO: Calculating kinematics (speed, acceleration)...")
+        kinematics_df = calculate_kinematics(processed_df)
 
-        # 正しく読み込めているか先頭5行を表示して確認
-        print("データの一部の読み込みに成功しました：")
-        print(df.head())
-        print(f"総データ行数: {len(df)}")
+        # 3. speed異常値検出
+        # 速度が計算できない最初のフレーム(NaN)を除外してから、速度のトップ5を抽出
+        valid_df = kinematics_df.dropna(subset=['speed'])
+        anomalies = valid_df.nlargest(5, 'speed')
+        
+        print("INFO: Anomaly frames detected:")
+        print("="*50)
+        # 必要な列だけ絞り込んで表示
+        print(anomalies[['frame', 'id', 'cx', 'cy', 'speed', 'acceleration']].to_string(index=False))
+        print("="*50 + "\n")
+
+        # 4. 軌跡の可視化
+        target_ids = [6, 7, 13, 27, 44, 51]
+        print(f"INFO: Generating trajectory plot for IDs: {target_ids}")
+        plot_trajectories(
+            df=processed_df,
+            target_ids=target_ids,
+            save_path=TRAJECTORY_PLOT_PATH
+        )
+        print(f"SUCCESS: Plot saved to {TRAJECTORY_PLOT_PATH}")
+
+        # 5. 速度のサブプロット描画
+        print("INFO: Generating speed subplots...")
+        plot_speed_subplots(
+            df=kinematics_df,
+            target_ids=target_ids,
+            save_path=SPEED_PLOT_PATH
+        )
+        print(f"SUCCESS: Speed plot saved to {SPEED_PLOT_PATH}")
 
     except Exception as e:
-        print(f"エラーが発生しました: {e}")
-
+        print(f"ERROR: {e}")
 
 if __name__ == "__main__":
     main()

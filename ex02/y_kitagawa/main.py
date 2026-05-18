@@ -2,88 +2,114 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import numpy as np
+import fire
 
-def calculate_kinematics(group):
-    group = group.sort_values('frame')
-    dt = group['frame'].diff()
-    dcx = group['cx'].diff()
-    dcy = group['cy'].diff()
-    
-    group['speed'] = np.sqrt(dcx**2 + dcy**2) / dt
-    group['acceleration'] = group['speed'].diff() / dt
-    return group
 
-def plot_trajectories(df, target_ids, output_dir):
-    plt.figure(figsize=(12, 8))
+class Player_analysis:
+    def __init__(self, data_path="117093_trimmed.txt", output_dir="result"):
+        self.data_path = data_path
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
 
-    for tid in target_ids:
-        player_data = df[df['id'] == tid]
-        plt.plot(player_data['cx'], player_data['cy'], 
-                 marker='o', markersize=2, label=f'ID: {tid}', alpha=0.7)
+    def load_and_process_data(self):
+        cols = ["frame", "id", "x", "y", "w", "h", "conf", "class", "vis", "none"]
+        df = pd.read_csv(self.data_path, header=None, names=cols)
+        df["cx"] = df["x"] + df["w"] / 2
+        df["cy"] = df["y"] + df["h"] / 2
 
-    plt.title('Player Trajectories')
-    plt.xlabel('X coordinate (pixels)')
-    plt.ylabel('Y coordinate (pixels)')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.gca().invert_yaxis() 
-    plt.tight_layout()
+        print("INFO: Calculating kinematics...")
 
-    # Save processed trajectory graph
-    save_path_traj = os.path.join(output_dir, 'trajectory_result.png')
-    plt.savefig(save_path_traj)
-    print(f"SUCCESS: Save the trajectory graph -> {os.path.abspath(save_path_traj)}")
+        def calculate_kinematics(group):
+            group = group.sort_values("frame")
+            dt = group["frame"].diff()
+            dcx = group["cx"].diff()
+            dcy = group["cy"].diff()
 
-def plot_speed(df, target_ids, output_dir):
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
+            group["speed"] = np.sqrt(dcx**2 + dcy**2) / dt
+            group["acceleration"] = group["speed"].diff() / dt
+            return group
 
-    for i, tid in enumerate(target_ids):
-        ax = axes[i]
-        player_data = df[df['id'] == tid]
-    
-        ax.plot(player_data['frame'], player_data['speed'], color='firebrick', marker='o', markersize=2, linestyle='-', linewidth=1, alpha=0.8)
-        ax.set_title(f'ID: {tid} Speed', fontsize=12)
-        ax.set_xlabel('Frame', fontsize=10)
-        ax.set_ylabel('Speed (pixels/frame)', fontsize=10)
-        ax.grid(True, linestyle='--', alpha=0.5)
+        df = df.groupby("id", group_keys=False).apply(calculate_kinematics)
 
-    if len(target_ids) < len(axes):
-        axes[-1].axis('off')
+        # Select target IDs (GK 13 + Top 4 fastest)
+        valid_df = df.dropna(subset=["speed"])
+        top4 = (
+            valid_df.loc[valid_df["id"] != 13]
+            .groupby("id")["speed"]
+            .max()
+            .nlargest(4)
+            .index.tolist()
+        )
+        target_ids = [13] + list(top4)
+        print(f"INFO: Target IDs for plotting: {target_ids}\n")
+        return df, target_ids
 
-    plt.tight_layout()
+    def plot_trajectories(self, df, target_ids):
+        plt.figure(figsize=(12, 8))
 
-    save_path_speed = os.path.join(output_dir, 'speed_subplots.png')
-    plt.savefig(save_path_speed, dpi=300)
-    print(f"SUCCESS: Save the speed subplots -> {os.path.abspath(save_path_speed)}")
+        for tid in target_ids:
+            player_data = df[df["id"] == tid]
+            plt.plot(
+                player_data["cx"],
+                player_data["cy"],
+                marker="o",
+                markersize=2,
+                label=f"ID: {tid}",
+                alpha=0.7,
+            )
 
-# Create the output folder
-output_dir = 'result'
-os.makedirs(output_dir, exist_ok=True)
+        plt.title("Player Trajectories")
+        plt.xlabel("X coordinate (pixels)")
+        plt.ylabel("Y coordinate (pixels)")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.grid(True, linestyle="--", alpha=0.5)
+        plt.gca().invert_yaxis()
+        plt.tight_layout()
 
-# Path to the trimmed result file
-result_path = '/home/y_kitagawa/B4Lecture-2026/ex02/y_kitagawa/117093_trimmed.txt'
+        # Save processed trajectory graph
+        save_path = os.path.join(self.output_dir, "trajectories.png")
+        plt.savefig(save_path)
+        plt.close()
+        print(f"SUCCESS: Save the trajectory graph -> {os.path.abspath(save_path)}")
 
-# Load the data
-cols = ['frame', 'id', 'x', 'y', 'w', 'h', 'conf', 'class', 'vis', 'none']
-df = pd.read_csv(result_path, header=None, names=cols)
+    def plot_speed(self, df, target_ids):
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        axes = axes.flatten()
 
-# Calculate center coordinates
-df['cx'] = df['x'] + df['w'] / 2
-df['cy'] = df['y'] + df['h'] / 2
+        for i, tid in enumerate(target_ids):
+            ax = axes[i]
+            player_data = df[df["id"] == tid]
 
-print("INFO: Calculating kinematics...")
-df = df.groupby('id', group_keys=False).apply(calculate_kinematics)
+            ax.plot(
+                player_data["frame"],
+                player_data["speed"],
+                color="firebrick",
+                marker="o",
+                markersize=2,
+                linestyle="-",
+                linewidth=1,
+                alpha=0.8,
+            )
+            ax.set_title(f"ID: {tid} Speed", fontsize=12)
+            ax.set_xlabel("Frame", fontsize=10)
+            ax.set_ylabel("Speed (pixels/frame)", fontsize=10)
+            ax.grid(True, linestyle="--", alpha=0.5)
 
-valid_df = df.dropna(subset=['speed'])
+        if len(target_ids) < len(axes):
+            axes[-1].axis("off")
 
-# Automatically extract the top 4 IDs with the highest maximum speed, excluding ID 13
-anomaly_candidates = valid_df[valid_df['id'] != 13]
-top4_ids = anomaly_candidates.sort_values(by='speed', ascending=False)['id'].unique()[:4]
+        plt.tight_layout()
+        save_path = os.path.join(self.output_dir, "speed_subplots.png")
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+        print(f"SUCCESS: Save the speed subplots -> {os.path.abspath(save_path)}")
 
-target_ids = [13] + list(top4_ids)
+    def run(self):
+        """Main pipeline execution method."""
+        df, target_ids = self.load_and_process_data()
+        self.plot_trajectories(df, target_ids)
+        self.plot_speed(df, target_ids)
 
-print(f"INFO: Target IDs for plotting: {target_ids}\n")
 
-plot_trajectories(df, target_ids, output_dir)
-plot_speed(df, target_ids, output_dir)
+if __name__ == "__main__":
+    fire.Fire(Player_analysis)

@@ -1,6 +1,6 @@
-from src.config import TRAJECTORY_PLOT_PATH, SPEED_PLOT_PATH
+from src.config import ANIMATION_OUTPUT_PATH, INPUT_VIDEO_PATH, TRAJECTORY_PLOT_PATH, SPEED_PLOT_PATH
 from src.data_processor import load_tracking_data, calculate_centers, calculate_kinematics
-from src.visualizer import plot_trajectories, plot_speed_subplots
+from src.visualizer import plot_trajectories, plot_speed_subplots, create_trajectory_video
 
 def main():
     try:
@@ -42,6 +42,16 @@ def main():
             save_path=SPEED_PLOT_PATH
         )
         print(f"SUCCESS: Speed plot saved to {SPEED_PLOT_PATH}")
+
+        # 6. 軌跡アニメーションの生成
+        print("\nINFO: Generating trajectory animation video...")
+        create_trajectory_video(
+            df=kinematics_df,
+            target_ids=target_ids,
+            input_video_path=INPUT_VIDEO_PATH,
+            output_video_path=ANIMATION_OUTPUT_PATH
+        )
+        print(f"SUCCESS: Animation saved to {ANIMATION_OUTPUT_PATH}")
 
     except Exception as e:
         print(f"ERROR: {e}")

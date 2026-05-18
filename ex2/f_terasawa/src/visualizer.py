@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Optional
+import cv2
+import numpy as np
 
 def plot_trajectories(
     df: pd.DataFrame, 
@@ -109,3 +111,94 @@ def plot_speed_subplots(
         plt.show()
 
     plt.close()
+
+
+def create_trajectory_video(
+    df: pd.DataFrame,
+    target_ids: List[int],
+    input_video_path: Path,
+    output_video_path: Path
+) -> None:
+    """入力映像を背景として、指定IDの軌跡を描画したアニメーション動画を生成する。
+    
+    Args:
+        df (pd.DataFrame): 処理済みのトラッキングデータ
+        target_ids (List[int]): 描画対象の track_id リスト
+        input_video_path (Path): 元映像のパス
+        output_video_path (Path): 生成する動画の保存先パス
+    """
+    cap = cv2.VideoCapture(str(input_video_path))
+    if not cap.isOpened():
+        raise FileNotFoundError(f"映像を開けませんでした: {input_video_path}")
+
+    # 動画のプロパティを取得
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # 書き出し用の設定
+    fourcc = cv2.VideoWriter_fourcc(*'vp80')
+    out = cv2.VideoWriter(str(output_video_path), fourcc, fps, (width, height))
+
+    # 描画用の色定義 (BGR形式)
+    colors = {
+        6: (255, 100, 100),   # 青系
+        7: (100, 200, 255),   # オレンジ系
+        13: (100, 255, 100),  # 緑系
+        27: (100, 100, 255),  # 赤系
+        44: (255, 100, 255),  # 紫系
+        51: (150, 150, 150)   # グレー系
+    }
+
+    # 各IDの過去の座標を保持する辞書
+    history = {tid: [] for tid in target_ids}
+    frame_idx = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # 背景映像を暗くする (元の明るさを40%にする)
+        dark_frame = cv2.addWeighted(frame, 0.4, np.zeros_like(frame), 0, 0)
+
+        # 現在のフレームのデータを取得
+        current_data = df[df['frame'] == frame_idx]
+
+        for tid in target_ids:
+            person_data = current_data[current_data['id'] == tid]
+            
+            # そのフレームに該当IDが存在すれば履歴に追加
+            if not person_data.empty:
+                cx = int(person_data['cx'].values[0])
+                cy = int(person_data['cy'].values[0])
+                history[tid].append((cx, cy))
+
+            pts = history[tid]
+            color = colors.get(tid, (255, 255, 255))
+
+            # 軌跡（線）を描画
+            if len(pts) > 1:
+                for i in range(1, len(pts)):
+                    cv2.line(dark_frame, pts[i-1], pts[i], color, thickness=2)
+
+            # 現在位置に点とIDを描画
+            if len(pts) > 0:
+                cv2.circle(dark_frame, pts[-1], radius=5, color=color, thickness=-1)
+                cv2.putText(
+                    dark_frame, f"ID:{tid}", (pts[-1][0] + 10, pts[-1][1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
+                )
+
+        # 編集したフレームを動画に書き込み
+        out.write(dark_frame)
+        
+        if frame_idx % 100 == 0:
+            print(f"INFO: {frame_idx}/{total_frames} フレーム処理完了...")
+            
+        frame_idx += 1
+
+    cap.release()
+    out.release()
+    print("SUCCESS: アニメーション生成が完了しました！")
